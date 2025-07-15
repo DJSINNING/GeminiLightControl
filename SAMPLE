@@ -1,0 +1,115 @@
+#nullable enable
+// <-------------------- PORTFOLIO CODE SAMPLE: Miniature SaaS API (BEGIN) -------------------->
+// Author: [Your Name]
+// Tech Stack: .NET 6+ Minimal API, C#, In-Memory Data Store
+// Purpose: Demonstrates a clean, modern, and scalable approach to building a Full-Stack application backend.
+
+// --- 1. USING STATEMENTS & GLOBAL CONFIG ---
+using Microsoft.AspNetCore.Mvc;
+using System.Collections.Concurrent;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// --- 2. DEPENDENCY INJECTION: Simulating Clean Architecture Layers ---
+
+// Data Layer: Stores the application's data (in-memory for this example).
+builder.Services.AddSingleton<IProductRepository, InMemoryProductRepository>();
+
+// Service Layer (Business Logic): Contains the core application logic.
+builder.Services.AddScoped<ProductService>();
+
+
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+
+
+// --- 3. PRESENTATION LAYER: The API Endpoints ---
+// These are the public-facing endpoints that a Frontend (Vue, React, etc.) would consume.
+
+var api = app.MapGroup("/api/products");
+
+// GET /api/products
+api.MapGet("/", (ProductService productService) => {
+    return productService.GetAllProducts();
+});
+
+// GET /api/products/{id}
+api.MapGet("/{id:int}", (int id, ProductService productService) => {
+    var product = productService.GetProductById(id);
+    return product is not null ? Results.Ok(product) : Results.NotFound();
+});
+
+// GET /api/products/premium
+api.MapGet("/premium", (ProductService productService) => {
+    // This simulates a feature only available to premium users.
+    return productService.GetPremiumProducts();
+});
+
+app.Run();
+
+
+// --- 4. DOMAIN: The Core Business Models ---
+// These classes define the essential data structures of the application.
+
+public record Product(int Id, string Name, double Price, bool IsPremium = false);
+
+
+// --- 5. SERVICE LAYER: Application Business Logic ---
+// This layer orchestrates data and applies business rules.
+
+public class ProductService
+{
+    private readonly IProductRepository _repository;
+
+    public ProductService(IProductRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public IEnumerable<Product> GetAllProducts() => _repository.GetAll();
+    
+    public Product? GetProductById(int id) => _repository.GetById(id);
+    
+    public IEnumerable<Product> GetPremiumProducts()
+    {
+        // Business Rule: Only return products marked as premium.
+        return _repository.GetAll().Where(p => p.IsPremium);
+    }
+}
+
+
+// --- 6. DATA LAYER: Data Access and Persistence ---
+// This layer is responsible for retrieving and storing data.
+
+public interface IProductRepository
+{
+    IEnumerable<Product> GetAll();
+    Product? GetById(int id);
+}
+
+public class InMemoryProductRepository : IProductRepository
+{
+    // Using a ConcurrentDictionary to be thread-safe.
+    private readonly ConcurrentDictionary<int, Product> _products = new(new[]
+    {
+        KeyValuePair.Create(1, new Product(1, "Standard Widget", 9.99)),
+        KeyValuePair.Create(2, new Product(2, "Advanced Gadget", 29.99)),
+        KeyValuePair.Create(3, new Product(3, "Pro Gear", 99.99, IsPremium: true)),
+        KeyValuePair.Create(4, new Product(4, "Ultimate Gizmo", 199.99, IsPremium: true)),
+    });
+
+    public IEnumerable<Product> GetAll() => _products.Values.OrderBy(p => p.Id);
+
+    public Product? GetById(int id) => _products.GetValueOrDefault(id);
+}
+
+// <-------------------- PORTFOLIO CODE SAMPLE: Miniature SaaS API (END) -------------------->
